@@ -16,7 +16,10 @@ Animación del caudal de los ríos de España (península + Baleares) a partir d
   `generar-mascara-rio.js`).
 - `render-frames.js` decodifica el NetCDF (vía `h5wasm`) y genera un PNG por
   fecha con una rampa de color fija en m³/s (comparable entre fechas) +
-  `manifiesto.json`.
+  `manifiesto.json`. También lee `data/bocas_rio.json` (generado una vez por
+  `generar-bocas.js`, la celda de mayor cuenca cerca de la desembocadura de
+  cada río principal) y guarda el caudal ahí en cada fecha, para las
+  etiquetas del visor.
 - `index.html`: visor Leaflet con reproductor (play/pausa/velocidad/scrubber),
   pestañas histórico/previsión — `?p=historico` o `?p=prevision`.
 - `.github/workflows/actualizar.yml`: refresca la previsión a diario y el

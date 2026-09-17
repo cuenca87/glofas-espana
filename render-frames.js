@@ -67,6 +67,7 @@ async function main() {
 
   const mascara = JSON.parse(await readFile("data/mascara_rio.json", "utf8"));
   const { filas: FILAS, cols: COLS, lat0: LAT0, lon0: LON0, paso: PASO } = mascara;
+  const bocas = JSON.parse(await readFile("data/bocas_rio.json", "utf8"));
 
   await h5wasm.ready;
   const f = new h5wasm.File(config.entrada, "r");
@@ -107,9 +108,17 @@ async function main() {
     }
     if (!Number.isFinite(min)) { min = 0; max = 0; }
 
+    // Caudal en cada desembocadura para este frame — lo que se lee en la
+    // etiqueta del visor. Se guarda por frame (no la posición, que es fija y
+    // va aparte en "bocas") para no repetir nombre/lat/lon 120 veces.
+    const caudalBocas = bocas.map((boca) => {
+      const v = frameData[boca.fila * COLS + boca.col];
+      return v < 1e30 ? Math.round(v) : null;
+    });
+
     const nombrePng = `f${String(t).padStart(3, "0")}.png`;
     await writeFile(`${config.salida}/${nombrePng}`, PNG.sync.write(png));
-    frames.push({ fecha: fechaISO, archivo: nombrePng, min: Number(min.toFixed(1)), max: Number(max.toFixed(1)) });
+    frames.push({ fecha: fechaISO, archivo: nombrePng, min: Number(min.toFixed(1)), max: Number(max.toFixed(1)), caudalBocas });
     console.log(`  [ok] ${fechaISO.slice(0, 10)} -> ${nombrePng} (${min.toFixed(1)}..${max.toFixed(1)} m³/s)`);
   }
 
@@ -118,6 +127,7 @@ async function main() {
     bbox: [LON0, LAT0 - FILAS * PASO, LON0 + COLS * PASO, LAT0], // [O,S,E,N]
     filas: FILAS, cols: COLS,
     paradasColor: PARADAS_CAUDAL,
+    bocas: bocas.map((b) => ({ nombre: b.nombre, lat: b.lat, lon: b.lon })),
     frames,
   }, null, 2));
 

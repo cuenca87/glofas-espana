@@ -57,6 +57,15 @@
   #velocidad { background: transparent; color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; font-size: 12px; padding: 3px 5px; flex: none; }
   .leaflet-control-attribution { font-size: 9px; }
   .leaflet-top.leaflet-right, .leaflet-top.leaflet-left { margin-top: 50px; }
+  /* Etiqueta de caudal en cada desembocadura: nombre del río fijo + valor que
+     se actualiza en cada frame. Halo oscuro para leerse igual sobre el mapa
+     claro u oscuro de fondo, como las etiquetas de temperatura de AROME. */
+  .etiqueta-rio {
+    font-size: 11px; font-weight: 600; color: #fff; text-align: center; white-space: nowrap;
+    pointer-events: none; font-variant-numeric: tabular-nums;
+    text-shadow: -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000, 1px 1px 2px #000, 0 0 4px #000;
+  }
+  .etiqueta-rio .nombre { opacity: 0.85; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -121,6 +130,36 @@ async function main() {
   const overlay = L.imageOverlay(DIR + manifiesto.frames[0].archivo, bounds, { opacity: 0.95, interactive: false }).addTo(mapa);
   manifiesto.frames.forEach(f => { const img = new Image(); img.src = DIR + f.archivo; });
 
+  // Etiquetas de caudal en cada desembocadura: un marcador fijo por río (son
+  // solo ~11, no hace falta la lógica de densidad-por-zoom de las etiquetas
+  // de temperatura de AROME) cuyo texto se actualiza en cada frame.
+  // Desplazamiento manual (px) para las etiquetas cuyas desembocaduras caen
+  // muy juntas en el mapa (Turia/Júcar están a solo ~30 km, Guadiana/
+  // Guadalquivir un poco más pero igual se solapan al tamaño de letra
+  // normal) — sin esto el texto de una tapaba al de la otra.
+  const DESPLAZAMIENTO = {
+    "Turia": [28, -14], "Júcar": [-28, 14],
+    "Guadiana": [-18, -10], "Guadalquivir": [18, 12],
+  };
+  const bocas = manifiesto.bocas || [];
+  const marcadoresBoca = bocas.map(b => {
+    const [dx, dy] = DESPLAZAMIENTO[b.nombre] || [0, 0];
+    return L.marker([b.lat, b.lon], {
+      icon: L.divIcon({ className: "etiqueta-rio", html: "", iconSize: [90, 26], iconAnchor: [45 - dx, 13 - dy] }),
+      interactive: false, keyboard: false,
+    }).addTo(mapa);
+  });
+
+  function actualizarBocas(i) {
+    const caudales = manifiesto.frames[i].caudalBocas;
+    marcadoresBoca.forEach((marker, idx) => {
+      const el = marker.getElement();
+      if (!el) return;
+      const v = caudales ? caudales[idx] : null;
+      el.innerHTML = v == null ? "" : `<div class="nombre">${bocas[idx].nombre}</div>${v.toLocaleString("es-ES")} m³/s`;
+    });
+  }
+
   const slider = document.getElementById("slider");
   const fechaActual = document.getElementById("fechaActual");
   const btnPlay = document.getElementById("btnPlay");
@@ -137,6 +176,7 @@ async function main() {
     fechaActual.textContent = fmtFecha.format(new Date(f.fecha)) + ` · máx. ${f.max} m³/s`;
     slider.value = i;
     overlay.setUrl(DIR + f.archivo);
+    actualizarBocas(i);
   }
 
   let indice = 0;

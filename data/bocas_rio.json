@@ -1,0 +1,90 @@
+[
+  {
+    "nombre": "Miño",
+    "fila": 42,
+    "col": 22,
+    "lat": 41.875,
+    "lon": -8.875,
+    "cuencaKm2": 16988
+  },
+  {
+    "nombre": "Duero",
+    "fila": 57,
+    "col": 26,
+    "lat": 41.125,
+    "lon": -8.674999999999999,
+    "cuencaKm2": 97693
+  },
+  {
+    "nombre": "Tajo",
+    "fila": 106,
+    "col": 17,
+    "lat": 38.675,
+    "lon": -9.125,
+    "cuencaKm2": 80143
+  },
+  {
+    "nombre": "Guadiana",
+    "fila": 136,
+    "col": 52,
+    "lat": 37.175,
+    "lon": -7.375,
+    "cuencaKm2": 67242
+  },
+  {
+    "nombre": "Guadalquivir",
+    "fila": 144,
+    "col": 73,
+    "lat": 36.775,
+    "lon": -6.324999999999999,
+    "cuencaKm2": 57008
+  },
+  {
+    "nombre": "Segura",
+    "fila": 117,
+    "col": 187,
+    "lat": 38.125,
+    "lon": -0.625,
+    "cuencaKm2": 15945
+  },
+  {
+    "nombre": "Júcar",
+    "fila": 96,
+    "col": 194,
+    "lat": 39.175,
+    "lon": -0.2749999999999986,
+    "cuencaKm2": 21422
+  },
+  {
+    "nombre": "Turia",
+    "fila": 91,
+    "col": 193,
+    "lat": 39.425000000000004,
+    "lon": -0.3249999999999993,
+    "cuencaKm2": 6224
+  },
+  {
+    "nombre": "Ebro",
+    "fila": 65,
+    "col": 216,
+    "lat": 40.725,
+    "lon": 0.8250000000000011,
+    "cuencaKm2": 84919
+  },
+  {
+    "nombre": "Llobregat",
+    "fila": 54,
+    "col": 242,
+    "lat": 41.275,
+    "lon": 2.1250000000000018,
+    "cuencaKm2": 4983
+  },
+  {
+    "nombre": "Nalón",
+    "fila": 8,
+    "col": 78,
+    "lat": 43.575,
+    "lon": -6.074999999999999,
+    "cuencaKm2": 4807
+  }
+]
