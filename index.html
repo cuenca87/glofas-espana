@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animación de caudal GloFAS — España</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121b2e;
+    --panel-border: #22314d;
+    --text: #e8edf7;
+    --text-dim: #93a2c0;
+    --accent: #4dc9e6;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; }
+  #mapa { position: absolute; inset: 0; }
+  .panel {
+    position: absolute; z-index: 1000; background: rgba(18,27,46,0.92);
+    border: 1px solid var(--panel-border); border-radius: 10px; backdrop-filter: blur(6px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  #cabecera {
+    top: 10px; left: 10px; right: 10px; padding: 8px 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  #titulo { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
+  #pestanas { display: flex; gap: 6px; }
+  #pestanas a {
+    color: var(--text-dim); text-decoration: none; font-size: 12px; padding: 4px 10px;
+    border-radius: 6px; border: 1px solid var(--panel-border);
+  }
+  #pestanas a.activa { color: #04222b; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  #leyendaInline { display: flex; align-items: center; gap: 8px; flex: none; }
+  #leyendaInline span { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  #rampa { width: 140px; height: 10px; border-radius: 5px; flex: none; }
+  #controles {
+    bottom: 10px; left: 10px; right: 10px; padding: 8px 14px 10px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  #sliderWrap { position: relative; }
+  #slider { width: 100%; accent-color: var(--accent); display: block; height: 18px; }
+  #escalaTiempo { position: relative; height: 15px; margin: 0 2px; }
+  #escalaTiempo .marca { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; color: var(--text-dim); white-space: nowrap; }
+  #escalaTiempo .marca::before {
+    content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 4px; background: var(--panel-border);
+  }
+  #filaControles { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+  #btnPlay {
+    background: var(--accent); border: none; color: #04222b; width: 34px; height: 34px; border-radius: 50%;
+    font-size: 14px; cursor: pointer; flex: none; display: flex; align-items: center; justify-content: center;
+  }
+  #btnPlay:hover { filter: brightness(1.1); }
+  #fechaActual { flex: 1; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--text); text-align: right; white-space: nowrap; }
+  #velocidad { background: transparent; color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; font-size: 12px; padding: 3px 5px; flex: none; }
+  .leaflet-control-attribution { font-size: 9px; }
+  .leaflet-top.leaflet-right, .leaflet-top.leaflet-left { margin-top: 50px; }
+</style>
+</head>
+<body>
+
+<div id="mapa"></div>
+
+<div id="cabecera" class="panel" title="cargando…">
+  <div id="titulo">🌊 GloFAS</div>
+  <div id="pestanas">
+    <a href="?p=historico" id="tabHistorico">Histórico</a>
+    <a href="?p=prevision" id="tabPrevision">Previsión</a>
+  </div>
+  <div id="leyendaInline">
+    <span id="tickMin">—</span>
+    <div id="rampa"></div>
+    <span id="tickMax">—</span>
+  </div>
+</div>
+
+<div id="controles" class="panel">
+  <div id="sliderWrap">
+    <input id="slider" type="range" min="0" max="0" value="0" step="1">
+    <div id="escalaTiempo"></div>
+  </div>
+  <div id="filaControles">
+    <button id="btnPlay">▶</button>
+    <select id="velocidad">
+      <option value="900">Lento</option>
+      <option value="450" selected>Normal</option>
+      <option value="180">Rápido</option>
+    </select>
+    <div id="fechaActual">—</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const PRESENTACION = {
+  historico: { nombre: "Evolución del caudal (2024-2026, semanal)" },
+  prevision: { nombre: "Previsión de caudal a 30 días" },
+};
+
+const modo = new URLSearchParams(location.search).get("p") || "historico";
+const DIR = `data/png_${modo}/`;
+
+document.getElementById(modo === "historico" ? "tabHistorico" : "tabPrevision").classList.add("activa");
+
+async function main() {
+  const manifiesto = await fetch(DIR + "manifiesto.json").then(r => r.json());
+  const info = PRESENTACION[modo];
+  document.getElementById("titulo").textContent = `🌊 ${info.nombre}`;
+  const [xmin, ymin, xmax, ymax] = manifiesto.bbox;
+  const bounds = [[ymin, xmin], [ymax, xmax]];
+
+  const mapa = L.map("mapa", { zoomControl: true, attributionControl: true }).fitBounds(bounds, { padding: [20, 20] });
+
+  L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    attribution: "Esri, HERE, Garmin, FAO, NOAA, USGS · Caudal: Copernicus Emergency Management Service (GloFAS)",
+    maxZoom: 16,
+  }).addTo(mapa);
+
+  const overlay = L.imageOverlay(DIR + manifiesto.frames[0].archivo, bounds, { opacity: 0.95, interactive: false }).addTo(mapa);
+  manifiesto.frames.forEach(f => { const img = new Image(); img.src = DIR + f.archivo; });
+
+  const slider = document.getElementById("slider");
+  const fechaActual = document.getElementById("fechaActual");
+  const btnPlay = document.getElementById("btnPlay");
+  const velocidad = document.getElementById("velocidad");
+
+  slider.max = manifiesto.frames.length - 1;
+
+  const fmtFecha = new Intl.DateTimeFormat("es-ES", {
+    weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC",
+  });
+
+  function pintarFrame(i) {
+    const f = manifiesto.frames[i];
+    fechaActual.textContent = fmtFecha.format(new Date(f.fecha)) + ` · máx. ${f.max} m³/s`;
+    slider.value = i;
+    overlay.setUrl(DIR + f.archivo);
+  }
+
+  let indice = 0;
+  let reproduciendo = false;
+  let temporizador = null;
+
+  function siguienteFrame() {
+    indice = (indice + 1) % manifiesto.frames.length;
+    pintarFrame(indice);
+  }
+
+  function iniciar() {
+    reproduciendo = true;
+    btnPlay.textContent = "⏸";
+    temporizador = setInterval(siguienteFrame, Number(velocidad.value));
+  }
+  function detener() {
+    reproduciendo = false;
+    btnPlay.textContent = "▶";
+    clearInterval(temporizador);
+  }
+
+  btnPlay.addEventListener("click", () => reproduciendo ? detener() : iniciar());
+  velocidad.addEventListener("change", () => { if (reproduciendo) { detener(); iniciar(); } });
+  slider.addEventListener("input", () => {
+    detener();
+    indice = Number(slider.value);
+    pintarFrame(indice);
+  });
+
+  pintarFrame(0);
+  iniciar();
+
+  // Escala de tiempo: en histórico (120 frames / 2.5 años) una marca cada
+  // ~3 meses (12 frames a paso semanal); en previsión (30 frames diarios)
+  // una marca cada 5 días — evita amontonar etiquetas ilegibles en cualquiera
+  // de los dos casos con un único PASO_MARCA fijo.
+  const escalaTiempo = document.getElementById("escalaTiempo");
+  const fmtMarca = modo === "historico"
+    ? new Intl.DateTimeFormat("es-ES", { month: "short", year: "2-digit", timeZone: "UTC" })
+    : new Intl.DateTimeFormat("es-ES", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+  const PASO_MARCA = modo === "historico" ? 12 : 5;
+  manifiesto.frames.forEach((f, i) => {
+    const esUltima = i === manifiesto.frames.length - 1;
+    if (i % PASO_MARCA !== 0 && !esUltima) return;
+    const marca = document.createElement("div");
+    marca.className = "marca";
+    marca.style.left = (i / (manifiesto.frames.length - 1) * 100) + "%";
+    marca.textContent = fmtMarca.format(new Date(f.fecha));
+    escalaTiempo.appendChild(marca);
+  });
+
+  // Leyenda: rampa de color reconstruida a partir de las mismas paradas del render.
+  const paradas = manifiesto.paradasColor;
+  const tMax = paradas[paradas.length - 1].t;
+  const grad = paradas.map(p => `rgb(${p.color[0]},${p.color[1]},${p.color[2]}) ${(p.t / tMax * 100).toFixed(0)}%`).join(", ");
+  document.getElementById("rampa").style.background = `linear-gradient(90deg, ${grad})`;
+  document.getElementById("tickMin").textContent = "0 m³/s";
+  document.getElementById("tickMax").textContent = `≥${tMax} m³/s`;
+}
+
+main().catch(err => {
+  document.getElementById("titulo").textContent = "Error cargando datos: " + err.message;
+  console.error(err);
+});
+</script>
+
+</body>
+</html>

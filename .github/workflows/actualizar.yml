@@ -1,0 +1,66 @@
+name: Actualizar animaciones GloFAS
+
+on:
+  schedule:
+    # Previsión: carrera operativa nueva cada día — se refresca a diario.
+    - cron: "0 8 * * *"
+    # Histórico: el producto "consolidated" tarda meses en consolidarse, así
+    # que no hay nada nuevo que pedir a diario — con una vez por semana basta
+    # para recoger los meses que van quedando consolidados.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm install
+
+      # continue-on-error: un fallo transitorio en uno de los dos jobs de la
+      # API (o que la carrera de previsión de hoy aún no esté publicada) no
+      # debe impedir publicar lo que sí se consiguió del otro — mismo patrón
+      # que arome.yml en visor_meteo_pwa.
+      - name: Descargar y renderizar previsión (diario)
+        id: prevision
+        if: github.event.schedule == '0 8 * * *' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        env:
+          EWDS_URL: ${{ secrets.EWDS_URL }}
+          EWDS_KEY: ${{ secrets.EWDS_KEY }}
+        run: |
+          node fetch-prevision.js
+          node render-frames.js prevision
+
+      - name: Descargar y renderizar histórico (semanal)
+        id: historico
+        if: github.event.schedule == '0 6 * * 1' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        env:
+          EWDS_URL: ${{ secrets.EWDS_URL }}
+          EWDS_KEY: ${{ secrets.EWDS_KEY }}
+        run: |
+          node fetch-historico.js
+          node render-frames.js historico
+
+      - name: Publicar cambios
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/png_historico data/png_prevision
+          git diff --cached --quiet || git commit -m "Actualiza animaciones de caudal GloFAS"
+          git push
+
+      - name: Marcar el job como fallido si algún paso de datos falló
+        if: steps.prevision.outcome == 'failure' || steps.historico.outcome == 'failure'
+        run: exit 1

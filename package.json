@@ -1,0 +1,11 @@
+{
+  "name": "glofas_espana",
+  "version": "1.0.0",
+  "description": "Animaciones de caudal GloFAS (histórico + previsión) para España, enmascaradas a la red fluvial real vía el fichero auxiliar 'upstream area' de GloFAS",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "h5wasm": "^0.10.3",
+    "pngjs": "^7.0.0"
+  }
+}
